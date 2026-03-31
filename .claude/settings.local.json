@@ -18,7 +18,15 @@
       "Bash(powershell.exe -Command \"python --version\")",
       "Bash(powershell.exe -Command \"python3 --version\")",
       "Bash(powershell.exe -Command \"Get-Command python\")",
-      "Bash(.venv/Scripts/pip install:*)"
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(find . -not -path ./.git/* -not -path ./.venv/* -not -path ./.sfdx/* -not -path */__pycache__/*)",
+      "Read(//d/VS Code/Personal Projects/Ai Agents/ai-agents-lab/BEGIN { FS = \"\"\"\"\"\"\"\"/**)",
+      "Bash(python -c \"from api.main import app; print\\(''main.py OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"from api.main import app; print\\(''main.py OK''\\)\")",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:8000/api/chat -H \"Content-Type: application/json\" -d \"{\"\"message\"\": \"\"Write a bulk-safe Apex trigger handler for Account that prevents duplicate Names on insert and update. Show the trigger file and handler class.\"\", \"\"history\"\": []}\")",
+      "Bash(pip install:*)"
     ]
   }
 }

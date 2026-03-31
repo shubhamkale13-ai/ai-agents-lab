@@ -2,11 +2,10 @@
 
 ## What This Repo Is
 
-`ai-agents-lab` is the **Python backend** for the AI Agent Marketplace on salesforceninja.dev.
-It runs as a FastAPI server deployed to **Hugging Face Spaces** (Docker SDK).
-The frontend lives in a separate repo: `salesforceninja-dev` (Vercel-hosted Next.js/static site).
+`ai-agents-lab` is a **FastAPI backend for a Salesforce CRM AI Agent**.
+It deploys to **Vercel** (Python serverless). The chat UI is a static HTML page served from `public/`.
 
-**Live backend URL (after HF deploy):** `https://salesforceninja-ai-agents.hf.space`
+**Live URL (after Vercel deploy):** `https://<project>.vercel.app`
 
 ---
 
@@ -15,34 +14,61 @@ The frontend lives in a separate repo: `salesforceninja-dev` (Vercel-hosted Next
 ```
 ai-agents-lab/
 ├── api/
-│   ├── main.py                  # FastAPI app, CORS, router registration
+│   ├── main.py              # FastAPI ASGI app — entry point for Vercel
 │   ├── requirements.txt
 │   └── routes/
-│       ├── lead_qualifier.py
-│       ├── web_scraper.py
-│       ├── support_resolver.py
-│       ├── doc_intelligence.py
-│       └── social_content.py
+│       └── chat.py          # POST /api/chat, GET /api/health
 │
 ├── agents/
-│   ├── lead_qualifier/
-│   │   ├── agent.py             # Core Gemini logic
-│   │   └── prompts.py           # Prompt templates
-│   ├── web_scraper/
-│   ├── support_resolver/
-│   ├── doc_intelligence/
-│   └── social_content/
+│   └── crm_chat/
+│       ├── agent.py         # Groq async chat with conversation history
+│       └── prompts.py       # CRM system prompt
 │
-├── Dockerfile                   # HuggingFace Spaces Docker deployment
-├── CLAUDE.md                    # ← You are here
-└── .gitignore
+├── public/
+│   └── index.html           # ChatGPT-style chat UI (served by Vercel static)
+│
+├── vercel.json              # Rewrites /api/* → FastAPI
+├── requirements.txt         # Root-level (for Vercel Python runtime)
+└── .env                     # Local secrets (gitignored)
 ```
 
-**Integration flow:**
-1. User pays via Razorpay on salesforceninja.dev
-2. JS on salesforceninja.dev calls `POST https://salesforceninja-ai-agents.hf.space/<agent>`
-3. FastAPI receives → Python agent runs → calls Gemini API → returns JSON
-4. Website renders results as table + download CSV
+---
+
+## API Design
+
+**Stateless** — client sends full conversation history with every request.
+
+### `POST /api/chat`
+```json
+Request:
+{
+  "message": "How do I write a bulk-safe trigger?",
+  "history": [
+    {"role": "user", "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ]
+}
+
+Response:
+{
+  "response": "...",
+  "history": [...updated history including new exchange...]
+}
+```
+
+### `GET /api/health`
+```json
+{ "status": "ok", "service": "salesforce-crm-ai-agent" }
+```
+
+---
+
+## Chat UI
+
+- **Location:** `public/index.html` (single self-contained file)
+- **Features:** ChatGPT-style, sidebar with session list, localStorage persistence, markdown rendering, typing indicator
+- **API:** calls `POST /api/chat` with full history
+- **Session storage:** client-side only (localStorage), no server-side state
 
 ---
 
@@ -51,189 +77,42 @@ ai-agents-lab/
 | Layer | Tech |
 |-------|------|
 | API framework | FastAPI |
-| AI model | Groq — `llama-3.3-70b-versatile` (`groq` SDK) |
-| Web scraping | `playwright`, `beautifulsoup4` |
-| Data processing | `pandas` |
-| PDF handling | `PyMuPDF` (`fitz`) |
-| OCR (fallback) | `pytesseract` |
-| Hosting | Hugging Face Spaces (Docker) |
-| Secret management | HF Spaces secrets → `GEMINI_API_KEY` env var |
-
----
-
-## Agents — Status Tracker
-
-| # | Agent | Route | Status |
-|---|-------|-------|--------|
-| 1 | Lead Qualifier | `POST /lead-qualifier` | ✅ Phase 1 — Built |
-| 2 | Web Scraper | `POST /web-scraper` | 🔲 Phase 2 |
-| 3 | Support Resolver | `POST /support-resolver` | 🔲 Phase 2 |
-| 4 | Document Intelligence | `POST /doc-intelligence` | 🔲 Phase 3 |
-| 5 | Social Content | `POST /social-content` | 🔲 Phase 3 |
-
----
-
-## Agent #1 — Lead Qualifier
-
-**Route:** `POST /lead-qualifier`
-
-**Request body:**
-```json
-{
-  "leads": [
-    {
-      "name": "John Doe",
-      "company": "Acme Corp",
-      "title": "VP Sales",
-      "email": "john@acme.com",
-      "linkedin_url": "https://linkedin.com/in/johndoe",
-      "notes": "Attended webinar on automation"
-    }
-  ],
-  "scoring_criteria": "B2B SaaS company, 50-500 employees, decision maker",
-  "output_format": "json"
-}
-```
-
-**Response:**
-```json
-{
-  "results": [
-    {
-      "name": "John Doe",
-      "company": "Acme Corp",
-      "score": "Hot",
-      "score_value": 87,
-      "reasoning": "Decision maker title, B2B company, showed buying intent",
-      "recommended_action": "Call within 24 hours",
-      "enriched_role": "VP Sales — likely budget authority",
-      "fit_tags": ["decision_maker", "b2b", "intent_signal"]
-    }
-  ],
-  "summary": "3 Hot, 5 Warm, 2 Cold out of 10 leads",
-  "csv_data": "name,company,score,score_value,reasoning\n..."
-}
-```
-
----
-
-## Agent #2 — Web Scraper
-
-**Route:** `POST /web-scraper`
-
-**Request body:**
-```json
-{
-  "urls": ["https://example.com"],
-  "extraction_instructions": "Extract product names, prices, and descriptions",
-  "output_format": "json"
-}
-```
-
----
-
-## Agent #3 — Support Resolver
-
-**Route:** `POST /support-resolver`
-
-**Request body:**
-```json
-{
-  "ticket_text": "My invoice shows wrong amount charged",
-  "knowledge_base": "FAQ content or paste your policies here...",
-  "tone": "professional"
-}
-```
-
----
-
-## Agent #4 — Document Intelligence
-
-**Route:** `POST /doc-intelligence`
-
-**Request body (multipart or JSON with base64):**
-```json
-{
-  "document_text": "...extracted or pasted text...",
-  "fields_to_extract": ["invoice_number", "date", "total_amount", "vendor_name"],
-  "detect_anomalies": true
-}
-```
-
----
-
-## Agent #5 — Social Content
-
-**Route:** `POST /social-content`
-
-**Request body:**
-```json
-{
-  "topic": "Benefits of AI in Salesforce",
-  "source_url": "https://blog.example.com/article",
-  "platforms": ["linkedin", "twitter", "instagram"],
-  "brand_tone": "professional and insightful",
-  "posts_per_platform": 2
-}
-```
+| AI model | Groq — `llama-3.3-70b-versatile` |
+| Hosting | Vercel (Python serverless) |
+| Static UI | `public/index.html` (Vercel static serving) |
+| Secret management | Vercel Environment Variables |
 
 ---
 
 ## Environment Variables
 
-| Variable | Purpose | Where to set |
-|----------|---------|--------------|
-| `GROQ_API_KEY` | Groq API key (primary LLM) | HF Spaces secrets / local `.env` |
-| `GEMINI_API_KEY` | Google Gemini key (backup/future use) | HF Spaces secrets / local `.env` |
+| Variable | Purpose |
+|----------|---------|
+| `GROQ_API_KEY` | Groq API key |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
 
-Local dev: `.env` file in repo root (already gitignored and created):
-```
-GROQ_API_KEY=...
-GEMINI_API_KEY=...
+Local dev: `.env` file in repo root (gitignored).
+
+---
+
+## Local Dev
+
+```bash
+uvicorn api.main:app --reload --port 8000
+# Chat UI: open public/index.html in browser, or
+# visit http://localhost:8000 (returns API info)
 ```
 
 ---
 
-## HuggingFace Deployment Checklist
+## Vercel Deployment
 
-- [ ] Create HF Space: `salesforceninja-ai-agents`, SDK: Docker
-- [ ] Link to this GitHub repo (`ai-agents-lab`)
-- [ ] Add secret: `GROQ_API_KEY`
-- [ ] Add secret: `GEMINI_API_KEY` (for future agents)
-- [ ] Push code → auto deploys
-- [ ] Verify live at: `https://salesforceninja-ai-agents.hf.space/health`
-
----
-
-## Phase Roadmap
-
-### Phase 1 — Lead Qualifier (Current)
-- [x] CLAUDE.md + repo context setup
-- [x] FastAPI main.py + CORS
-- [x] requirements.txt
-- [x] agents/lead_qualifier/prompts.py
-- [x] agents/lead_qualifier/agent.py
-- [x] api/routes/lead_qualifier.py
-- [x] Dockerfile
-- [ ] Deploy to HuggingFace Spaces
-- [ ] Test full end-to-end flow
-
-### Phase 2 — Web Scraper + Support Resolver
-- [ ] agents/web_scraper/
-- [ ] agents/support_resolver/
-- [ ] api/routes/web_scraper.py
-- [ ] api/routes/support_resolver.py
-
-### Phase 3 — Doc Intelligence + Social Content + Polish
-- [ ] agents/doc_intelligence/
-- [ ] agents/social_content/
-- [ ] api/routes/doc_intelligence.py
-- [ ] api/routes/social_content.py
-
-### Phase 4 — Launch
-- [ ] Product Hunt launch
-- [ ] AI directories submission
-- [ ] Demo videos
+1. Push repo to GitHub
+2. Connect to Vercel, select repo
+3. Add Environment Variable: `GROQ_API_KEY`
+4. Deploy — Vercel auto-detects Python from `requirements.txt`
+5. `public/index.html` is served at `/` as static
+6. `/api/*` routes to `api/main.py` via `vercel.json` rewrites
 
 ---
 
@@ -241,8 +120,7 @@ GEMINI_API_KEY=...
 
 - Python 3.11+
 - All agent functions are `async`
-- Gemini calls use `google-generativeai` SDK
-- Pydantic models for all request/response schemas (defined in routes)
+- Pydantic v2 models for all request/response schemas
 - No secrets in code — always `os.getenv()`
-- Return structured JSON always — never raw text
+- API always returns structured JSON
 - Error responses: `{"error": "message", "detail": "..."}`
