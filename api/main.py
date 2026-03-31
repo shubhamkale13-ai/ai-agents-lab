@@ -16,7 +16,7 @@ app = FastAPI(
 
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
-    "https://www.salesforceninja.dev,http://localhost:3000,http://localhost:8000",
+    "*",  # Vercel: frontend and API are same origin, CORS not needed
 ).split(",")
 
 app.add_middleware(
@@ -29,9 +29,13 @@ app.add_middleware(
 
 app.include_router(chat_router)
 
-app.mount("/static", StaticFiles(directory="public"), name="static")
+# Local dev only — Vercel serves public/ as static files automatically
+if os.path.exists("public/assets"):
+    app.mount("/assets", StaticFiles(directory="public/assets"), name="assets")
 
 
 @app.get("/")
 async def root():
-    return FileResponse("public/index.html")
+    if os.path.exists("public/index.html"):
+        return FileResponse("public/index.html")
+    return {"service": "Salesforce CRM AI Agent", "version": "2.0.0"}
