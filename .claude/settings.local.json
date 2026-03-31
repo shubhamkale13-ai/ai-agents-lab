@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv .venv)",
+      "Bash(py --version)",
+      "Bash(python3.11 --version)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "Bash(cmd.exe /c \"where python\")",
+      "Read(//c/Users/Shubham Kale/AppData/Local/Programs/**)",
+      "Read(//c//**)",
+      "Bash(cmd.exe /c \"py -0\")",
+      "Bash(cmd.exe /c \"where python3\")",
+      "Bash(cmd.exe /c \"py -3 --version\")",
+      "Read(//c/Users/Shubham Kale/AppData/Local/Microsoft/WindowsApps/**)",
+      "Bash(\"/c/Users/Shubham Kale/AppData/Local/Microsoft/WindowsApps/python3\" --version)",
+      "Bash(cmd.exe /c \"python --version\")",
+      "Bash(powershell.exe -Command \"python --version\")",
+      "Bash(powershell.exe -Command \"python3 --version\")",
+      "Bash(powershell.exe -Command \"Get-Command python\")",
+      "Bash(.venv/Scripts/pip install:*)"
+    ]
+  }
+}
