@@ -1,23 +1,21 @@
 FROM python:3.11-slim
 
+# HuggingFace Spaces requires a non-root user
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH="/home/user/.local/bin:$PATH"
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install Python dependencies
-COPY api/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=user api/requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
 # Copy application code
-COPY api/ ./api/
-COPY agents/ ./agents/
+COPY --chown=user api/ ./api/
+COPY --chown=user agents/ ./agents/
 
-# HuggingFace Spaces requires the app to listen on port 7860
-ENV PORT=7860
+# HuggingFace Spaces listens on port 7860
 EXPOSE 7860
 
-# Run the FastAPI app
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]

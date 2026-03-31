@@ -1,3 +1,13 @@
+---
+title: AI Agents Lab
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AI Agents Lab
 
 FastAPI backend for the [salesforceninja.dev](https://www.salesforceninja.dev) AI Agent Marketplace.
