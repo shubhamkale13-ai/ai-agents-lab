@@ -2,9 +2,12 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+import gradio as gr
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from api.routes import lead_qualifier
+from api.chat_ui import build_ui
 
 app = FastAPI(
     title="AI Agents Lab",
@@ -27,21 +30,14 @@ app.add_middleware(
 
 app.include_router(lead_qualifier.router)
 
+# Mount Gradio chat UI at /chat
+gradio_app = build_ui()
+app = gr.mount_gradio_app(app, gradio_app, path="/chat")
+
 
 @app.get("/")
 async def root():
-    return {
-        "service": "AI Agents Lab — salesforceninja.dev",
-        "status": "running",
-        "agents": [
-            {"name": "Lead Qualifier", "route": "/lead-qualifier", "status": "live"},
-            {"name": "Web Scraper", "route": "/web-scraper", "status": "coming_soon"},
-            {"name": "Support Resolver", "route": "/support-resolver", "status": "coming_soon"},
-            {"name": "Document Intelligence", "route": "/doc-intelligence", "status": "coming_soon"},
-            {"name": "Social Content", "route": "/social-content", "status": "coming_soon"},
-        ],
-        "docs": "/docs",
-    }
+    return RedirectResponse(url="/chat")
 
 
 @app.get("/health")

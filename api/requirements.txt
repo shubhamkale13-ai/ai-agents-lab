@@ -8,3 +8,4 @@ requests>=2.32.3
 beautifulsoup4>=4.12.3
 python-multipart>=0.0.20
 httpx>=0.28.0
+gradio>=5.0.0
