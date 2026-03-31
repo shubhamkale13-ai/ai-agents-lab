@@ -28,6 +28,22 @@ app.add_middleware(
 app.include_router(lead_qualifier.router)
 
 
+@app.get("/")
+async def root():
+    return {
+        "service": "AI Agents Lab — salesforceninja.dev",
+        "status": "running",
+        "agents": [
+            {"name": "Lead Qualifier", "route": "/lead-qualifier", "status": "live"},
+            {"name": "Web Scraper", "route": "/web-scraper", "status": "coming_soon"},
+            {"name": "Support Resolver", "route": "/support-resolver", "status": "coming_soon"},
+            {"name": "Document Intelligence", "route": "/doc-intelligence", "status": "coming_soon"},
+            {"name": "Social Content", "route": "/social-content", "status": "coming_soon"},
+        ],
+        "docs": "/docs",
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "ai-agents-lab"}
