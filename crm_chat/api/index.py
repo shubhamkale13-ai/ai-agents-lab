@@ -1,10 +1,17 @@
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 app = FastAPI(title="CRM Chat Agent")
 
@@ -38,7 +45,10 @@ class ChatResponse(BaseModel):
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
-    response_text = await agent_chat(req.message, history_dicts)
+    try:
+        response_text = await agent_chat(req.message, history_dicts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     updated_history = req.history + [
         Message(role="user", content=req.message),
         Message(role="assistant", content=response_text),
@@ -48,4 +58,8 @@ async def chat(req: ChatRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "crm-chat-agent"}
+    return {
+        "status": "ok",
+        "service": "crm-chat-agent",
+        "groq_configured": bool(os.getenv("GROQ_API_KEY")),
+    }
