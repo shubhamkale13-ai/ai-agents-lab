@@ -1,12 +1,18 @@
 import os
 import json
 import re
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 app = FastAPI(title="Sales Assistant Agent")
 
@@ -86,7 +92,10 @@ async def sales_chat(req: SalesChatRequest):
         )
 
     history_dicts = [{"role": m.role, "content": m.content} for m in req.history]
-    response_text = await sales_agent_chat(req.message, history_dicts)
+    try:
+        response_text = await sales_agent_chat(req.message, history_dicts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     clean_response, metadata = _extract_sales_metadata(response_text)
 
     updated_history = req.history + [
@@ -104,4 +113,7 @@ async def sales_health():
         "status": "ok",
         "service": "sales-assistant-agent",
         "salesforce_configured": sf_configured,
+        "groq_configured": bool(os.getenv("GROQ_API_KEY")),
+        "sf_security_token_configured": bool(os.getenv("SF_SECURITY_TOKEN")),
+        "sf_domain": os.getenv("SF_DOMAIN", "login"),
     }
