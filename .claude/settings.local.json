@@ -31,7 +31,9 @@
       "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/assets/)",
-      "Bash(curl -s -o /dev/null -w \"assets JS: %{http_code}\\\\n\" http://localhost:8000/assets/index-BjNbxjvy.js)"
+      "Bash(curl -s -o /dev/null -w \"assets JS: %{http_code}\\\\n\" http://localhost:8000/assets/index-BjNbxjvy.js)",
+      "Bash(.venv/Scripts/python -c \"from api.main import app; print\\('OK — routes:', [r.path for r in app.routes]\\)\")",
+      "Bash(.venv/Scripts/python test_sales_agent.py)"
     ]
   }
 }

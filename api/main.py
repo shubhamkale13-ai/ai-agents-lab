@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from api.routes.chat import router as chat_router
+from api.routes.sales_assistant import router as sales_router
 
 app = FastAPI(
     title="Salesforce CRM AI Agent",
@@ -28,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+app.include_router(sales_router)
 
 # Local dev only — Vercel serves public/ as static files automatically
 if os.path.exists("public/assets"):

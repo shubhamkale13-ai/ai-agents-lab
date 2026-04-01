@@ -42,7 +42,7 @@ export default function App() {
     save({ ...currentSessions, [sessId]: { ...currentSessions[sessId], history: newHistory } })
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/sales/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: msg, history: currentHistory }),
@@ -84,7 +84,7 @@ export default function App() {
         <header className="flex items-center justify-between px-6 py-3.5 border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-xl flex-shrink-0">
           <div>
             <div className="text-sm font-semibold text-slate-100 truncate max-w-xs">
-              {activeId && sessions[activeId] ? sessions[activeId].title : 'Salesforce CRM Assistant'}
+              {activeId && sessions[activeId] ? sessions[activeId].title : 'Sales Assistant'}
             </div>
             <div className="text-[11px] text-slate-500 mt-0.5">Apex · SOQL · LWC · Flows · Integrations</div>
           </div>
