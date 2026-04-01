@@ -13,6 +13,7 @@ import os
 import json
 import logging
 import asyncio
+import re
 from groq import AsyncGroq
 from agent.prompts import SALES_ASSISTANT_FALLBACK_PROMPT, SALES_ASSISTANT_SYSTEM_PROMPT
 from agent.tools import TOOL_DEFINITIONS, describe_salesforce_object, run_soql_query, create_task_in_sf
@@ -63,6 +64,22 @@ def _is_tool_validation_error(error: Exception) -> bool:
     return "tool call validation failed" in text or "tool_use_failed" in text
 
 
+def _extract_failed_tool_call(error: Exception) -> tuple[str, dict] | None:
+    text = str(error)
+    match = re.search(r"<function=([a-zA-Z0-9_]+)\s+(\{.*?\})\s*</function>", text, flags=re.DOTALL)
+    if not match:
+        return None
+
+    tool_name = match.group(1)
+    try:
+        arguments = json.loads(match.group(2))
+    except json.JSONDecodeError:
+        logger.warning("Could not parse failed tool-call arguments from error: %s", text)
+        return None
+
+    return tool_name, arguments
+
+
 async def chat(message: str, history: list[dict]) -> str:
     """Run one turn of the Sales Assistant agent."""
     client = _get_client()
@@ -81,6 +98,30 @@ async def chat(message: str, history: list[dict]) -> str:
                 max_tokens=2048,
             )
         except Exception as e:
+            if _is_tool_validation_error(e):
+                failed_tool_call = _extract_failed_tool_call(e)
+                if failed_tool_call is not None:
+                    tool_name, tool_args = failed_tool_call
+                    logger.warning(
+                        "Recovering from malformed tool call by executing %s with args %s",
+                        tool_name,
+                        tool_args,
+                    )
+                    tool_result = await _execute_tool(tool_name, tool_args)
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            f"The previous tool call was malformed, but the runtime executed it anyway.\n"
+                            f"Tool: {tool_name}\n"
+                            f"Arguments: {json.dumps(tool_args)}\n"
+                            f"Result:\n{tool_result}\n\n"
+                            "Do not emit <function=...> tags. Either use the native tool interface correctly "
+                            "or answer directly from the tool result."
+                        ),
+                    })
+                    used_fallback_prompt = True
+                    continue
+
             if not used_fallback_prompt and _is_tool_validation_error(e):
                 logger.warning("Retrying with fallback prompt after tool validation failure")
                 messages = _build_messages(SALES_ASSISTANT_FALLBACK_PROMPT, message, history)
