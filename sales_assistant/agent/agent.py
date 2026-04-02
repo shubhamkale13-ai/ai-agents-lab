@@ -80,9 +80,130 @@ def _extract_failed_tool_call(error: Exception) -> tuple[str, dict] | None:
     return tool_name, arguments
 
 
+def _empty_salesmeta() -> dict:
+    return {
+        "opportunity_insights": {
+            "deal_value": None,
+            "stage": None,
+            "risk_level": None,
+            "last_activity": None,
+        },
+        "account_summary": {
+            "key_contacts": [],
+            "engagement_score": None,
+        },
+        "recommended_actions": [],
+        "email": {
+            "subject": None,
+            "body": None,
+        },
+    }
+
+
+def _format_currency(value) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _format_sales_response(text: str, metadata: dict | None = None) -> str:
+    payload = metadata or _empty_salesmeta()
+    return f"{text}\n```salesmeta\n{json.dumps(payload, indent=2)}\n```"
+
+
+def _parse_soql_result(payload: str) -> dict | None:
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        logger.warning("Could not parse SOQL payload: %s", payload)
+        return None
+
+
+def _is_total_opportunities_request(message: str) -> bool:
+    lower = message.lower()
+    return "opportunit" in lower and any(term in lower for term in ["total", "count", "how many"])
+
+
+def _is_list_opportunities_request(message: str) -> bool:
+    lower = message.lower()
+    return "opportunit" in lower and any(term in lower for term in ["list", "show", "all", "details"])
+
+
+def _is_highest_revenue_request(message: str) -> bool:
+    lower = message.lower()
+    return (
+        ("opportunit" in lower or "deal" in lower)
+        and any(term in lower for term in ["highest revenue", "largest revenue", "highest amount", "biggest deal", "top deal"])
+    )
+
+
+async def _handle_opportunity_shortcuts(message: str) -> str | None:
+    if _is_total_opportunities_request(message):
+        result = await _execute_tool("run_soql_query", {"soql": "SELECT COUNT(Id) totalCount FROM Opportunity"})
+        parsed = _parse_soql_result(result)
+        total = None
+        if parsed and parsed.get("records"):
+            total = parsed["records"][0].get("expr0") or parsed["records"][0].get("totalCount")
+        if total is None:
+            return None
+        return _format_sales_response(f"There are {total} total opportunities.")
+
+    if _is_highest_revenue_request(message):
+        result = await _execute_tool(
+            "run_soql_query",
+            {"soql": "SELECT Id, Name, Amount, StageName, CloseDate, Account.Name FROM Opportunity WHERE Amount != NULL ORDER BY Amount DESC LIMIT 1"},
+        )
+        parsed = _parse_soql_result(result)
+        records = (parsed or {}).get("records", [])
+        if not records:
+            return _format_sales_response("I could not find any opportunities with an amount populated.")
+        top = records[0]
+        amount = _format_currency(top.get("Amount"))
+        account_name = top.get("Account.Name") or "Unknown account"
+        answer = (
+            f"The highest-revenue deal is {top.get('Name', 'Unknown opportunity')} at {amount or 'an unknown amount'}.\n"
+            f"Stage: {top.get('StageName') or 'Unknown'}\n"
+            f"Account: {account_name}\n"
+            f"Close date: {top.get('CloseDate') or 'Unknown'}"
+        )
+        metadata = _empty_salesmeta()
+        metadata["opportunity_insights"]["deal_value"] = amount
+        metadata["opportunity_insights"]["stage"] = top.get("StageName")
+        return _format_sales_response(answer, metadata)
+
+    if _is_list_opportunities_request(message):
+        result = await _execute_tool(
+            "run_soql_query",
+            {"soql": "SELECT Name, Amount, StageName, CloseDate, Account.Name FROM Opportunity ORDER BY Amount DESC LIMIT 200"},
+        )
+        parsed = _parse_soql_result(result)
+        records = (parsed or {}).get("records", [])
+        if not records:
+            return _format_sales_response("I could not find any opportunities.")
+        lines = [f"There are {len(records)} opportunities in the returned result set:"]
+        for record in records:
+            lines.append(
+                f"- {record.get('Name', 'Unknown opportunity')} | "
+                f"{_format_currency(record.get('Amount')) or 'No amount'} | "
+                f"{record.get('StageName') or 'No stage'} | "
+                f"Close: {record.get('CloseDate') or 'No close date'} | "
+                f"Account: {record.get('Account.Name') or 'Unknown account'}"
+            )
+        return _format_sales_response("\n".join(lines))
+
+    return None
+
+
 async def chat(message: str, history: list[dict]) -> str:
     """Run one turn of the Sales Assistant agent."""
     client = _get_client()
+
+    shortcut_response = await _handle_opportunity_shortcuts(message)
+    if shortcut_response is not None:
+        return shortcut_response
 
     messages = _build_messages(SALES_ASSISTANT_SYSTEM_PROMPT, message, history)
     used_fallback_prompt = False
